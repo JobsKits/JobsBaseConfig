@@ -10,3 +10,15 @@
 	path = JobsBaseConfig@JobsFlutterBaseConfigDemo
 	url = https://github.com/JobsKits/JobsFlutterBaseConfigDemo
 	branch = main
+[submodule "JobsOCBaseConfigDemo"]
+	path = JobsOCBaseConfigDemo
+	url = https://github.com/JobsKits/JobsOCBaseConfigDemo.git
+	branch = main
+[submodule "JobsSwiftBaseConfigDemo"]
+	path = JobsSwiftBaseConfigDemo
+	url = https://github.com/JobsKits/JobsSwiftBaseConfigDemo.git
+	branch = main
+[submodule "JobsFlutterBaseConfigDemo"]
+	path = JobsFlutterBaseConfigDemo
+	url = https://github.com/JobsKits/JobsFlutterBaseConfigDemo.git
+	branch = main
