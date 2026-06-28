@@ -51,7 +51,7 @@
 ### 3、`独立仓`改造为`子git`
 
 ```shell
-mv JobsBaseConfig@JobsFlutterBaseConfigDemo/.git /tmp/backup-JobsFlutterBaseConfigDemo.gitdir
+mv JobsBaseConfig@JobsFlutterBaseConfigDemo/.git $TMPDIR/backup-JobsFlutterBaseConfigDemo.gitdir
 git rm -f --cached JobsBaseConfig@JobsFlutterBaseConfigDemo 2>/dev/null || true
 rm -rf .git/modules/JobsBaseConfig@JobsFlutterBaseConfigDemo 2>/dev/null || true
 
