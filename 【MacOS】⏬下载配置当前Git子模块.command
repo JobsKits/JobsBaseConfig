@@ -32,6 +32,7 @@ export LC_CTYPE="${LC_CTYPE:-UTF-8}"
 SUBMODULE_REPO_URLS=(
   "https://github.com/JobsKits/JobsOCBaseConfigDemo|JobsBaseConfig@JobsOCBaseConfigDemo"
   "https://github.com/JobsKits/JobsSwiftBaseConfigDemo|JobsBaseConfig@JobsSwiftBaseConfigDemo"
+  "https://github.com/JobsKits/JobsSwiftUIBaseConfigDemo|JobsBaseConfig@JobsSwiftUIBaseConfigDemo"
   "https://github.com/JobsKits/JobsFlutterBaseConfigDemo|JobsBaseConfig@JobsFlutterBaseConfigDemo"
   # 以后新增仓库，只写浏览器页面地址即可。
   # "https://github.com/JobsKits/xxx"
