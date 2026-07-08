@@ -1,3 +1,4 @@
+# 记录本仓库子模块的路径、远端地址和默认分支。
 [submodule "JobsBaseConfig@JobsOCBaseConfigDemo"]
 	path = JobsBaseConfig@JobsOCBaseConfigDemo
 	url = https://github.com/JobsKits/JobsOCBaseConfigDemo
@@ -9,4 +10,8 @@
 [submodule "JobsBaseConfig@JobsFlutterBaseConfigDemo"]
 	path = JobsBaseConfig@JobsFlutterBaseConfigDemo
 	url = https://github.com/JobsKits/JobsFlutterBaseConfigDemo
+	branch = main
+[submodule "JobsBaseConfig@JobsSwiftUIBaseConfigDemo"]
+	path = JobsBaseConfig@JobsSwiftUIBaseConfigDemo
+	url = https://github.com/JobsKits/JobsSwiftUIBaseConfigDemo.git
 	branch = main
