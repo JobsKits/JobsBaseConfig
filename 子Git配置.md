@@ -1,10 +1,10 @@
-# 子Git配置
+# <span id="前言">子Git配置</span>
 
-## 1、光速回退
+## 1、光速回退 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
 * 删除父仓库根目录下的`.git`文件夹后运行` 【MacOS】⬆️Git添加子模块.command`
 
-### 2、彻底重置（推荐，但相关文件需要做保存到别处）
+### 2、彻底重置（推荐，但相关文件需要做保存到别处） <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
 * 在父仓库根目录执行：
 
@@ -48,7 +48,7 @@
   git commit -m "feat: add base config submodules"
   ```
 
-### 3、`独立仓`改造为`子git`
+### 3、`独立仓`改造为`子git` <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
 ```shell
 mv JobsBaseConfig@JobsFlutterBaseConfigDemo/.git $TMPDIR/backup-JobsFlutterBaseConfigDemo.gitdir
@@ -59,3 +59,4 @@ git submodule add -b main https://github.com/JobsKits/JobsFlutterBaseConfigDemo 
 git submodule update --init --recursive JobsBaseConfig@JobsFlutterBaseConfigDemo
 ```
 
+<a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>
