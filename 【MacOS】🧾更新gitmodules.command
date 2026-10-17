@@ -1,9 +1,9 @@
 #!/bin/zsh
 # 脚本自述：
 # - 脚本名称：【MacOS】🧾更新gitmodules.command
-# - 核心用途：按工程根目录第一层真实子 Git 目录刷新或生成 .gitmodules。
+# - 核心用途：按工程根目录第一层真实子 Git 增量补齐 .gitmodules，保留已有登记。
 # - 影响范围：只改写或新建当前工程根目录下的 .gitmodules，不自动 stage、commit、push，也不改子仓库内容。
-# - 运行提示：运行后会先打印内置自述；终端模式按回车确认后继续，写入前再次回车确认。
+# - 运行提示：先回车查看计划；写入前回车跳过、输入任意字符执行；DRY_RUN=1 仅预览。
 
 # 仅渲染自述：标题红色加粗，编号正文蓝色常规字重；非彩色终端输出纯文本。
 jobs_intro_style() {
@@ -36,11 +36,11 @@ REPO_ROOT="$SCRIPT_DIR"
 GITMODULES_FILE="${REPO_ROOT}/.gitmodules"
 LOG_FILE="${TMPDIR:-/tmp/}${SCRIPT_BASENAME}.log"
 DRY_RUN="${DRY_RUN:-0}"
+GITMODULES_CHECKSUM=""
 
 typeset -ga CURRENT_SUBGIT_DIRS
 typeset -ga WRITABLE_SUBGIT_DIRS
 typeset -ga SKIPPED_SUBGIT_DIRS
-typeset -ga INFERRED_SUBGIT_DIRS
 typeset -ga STALE_GITMODULE_PATHS
 typeset -gA EXISTING_SECTION_NAMES
 typeset -gA EXISTING_BRANCHES
@@ -49,7 +49,6 @@ typeset -gA SUBMODULE_BRANCHES
 CURRENT_SUBGIT_DIRS=()
 WRITABLE_SUBGIT_DIRS=()
 SKIPPED_SUBGIT_DIRS=()
-INFERRED_SUBGIT_DIRS=()
 STALE_GITMODULE_PATHS=()
 
 # 输出日志并同步写入日志文件。
@@ -89,12 +88,13 @@ show_script_intro_and_wait() {
   clear 2>/dev/null || true
   print -r -- '============================== 脚本内置自述 ==============================' | jobs_intro_style title
   print -r -- '脚本名称：【MacOS】🧾更新gitmodules.command' | jobs_intro_style title
-  print -r -- '核心用途：扫描当前工程根目录第一层带 .git 的目录，并据此刷新或生成 .gitmodules。' | jobs_intro_style body
+  print -r -- '核心用途：扫描直属子 Git 并增量补齐 .gitmodules；已有 URL、分支、扩展字段和缺失目录登记均保留。' | jobs_intro_style body
   print -r -- '影响范围：只改写或新建 .gitmodules；不会自动 git add、commit、push，也不会修改子仓库内容。' | jobs_intro_style body
-  print -r -- '运行策略：先展示扫描结果和 diff，真正写入前直接回车执行，输入任意字符跳过。' | jobs_intro_style body
+  print -r -- '运行策略：先展示扫描结果和 diff，写入前回车跳过、输入任意字符执行；DRY_RUN=1 仅预览。' | jobs_intro_style body
   print -r -- "日志位置：${LOG_FILE}" | jobs_intro_style body
   print -r -- '取消方式：确认前按 Ctrl+C 终止，不会继续执行后续业务。' | jobs_intro_style body
   print -r -- '============================================================================' | jobs_intro_style title
+  [[ "$DRY_RUN" == 1 ]] && return 0
   if [[ ! -t 0 ]]; then
     print -u2 -r -- '当前没有可交互输入，请在终端中重新运行。'
     return 1
@@ -102,12 +102,12 @@ show_script_intro_and_wait() {
   echo "" | jobs_intro_style body
   read -r "?👉 已了解脚本用途与影响，按回车继续；按 Ctrl+C 取消：" _
 }
-# 普通写入动作直接回车执行，输入任意字符后跳过。
+# 普通更新动作回车跳过，输入任意字符后执行。
 ask_enter_to_run() {
   local message="$1"
   local answer=""
-  read -r "?${message}（直接回车执行；输入任意字符后回车跳过）：" answer
-  [[ -z "$answer" ]]
+  read -r "?${message}（直接回车跳过；输入任意字符后回车执行）：" answer
+  [[ -n "$answer" ]]
 }
 # 初始化 Shell 运行选项和日志文件。
 initialize_script_runtime() {
@@ -138,6 +138,13 @@ check_environment() {
     error_echo "脚本必须放在目标 Git 仓库根目录运行：${REPO_ROOT}"
     return 1
   fi
+  [[ ! -L "$GITMODULES_FILE" && ( ! -e "$GITMODULES_FILE" || -f "$GITMODULES_FILE" ) ]] || { error_echo '.gitmodules 必须是普通文件。'; return 1; }
+  if [[ -f "$GITMODULES_FILE" ]]; then
+    git config --file "$GITMODULES_FILE" --list >/dev/null || { error_echo '.gitmodules 语法无效。'; return 1; }
+    GITMODULES_CHECKSUM="$(cksum < "$GITMODULES_FILE")"
+  else
+    GITMODULES_CHECKSUM=absent
+  fi
 }
 # 判断数组中是否包含指定值。
 array_contains() {
@@ -149,25 +156,20 @@ array_contains() {
   done
   return 1
 }
-# 读取已有 .gitmodules 的 path、section 和 branch，用于保留原 section 名。
+# 按零字节分隔读取已有映射，保留含空格路径和未设置 branch 的状态。
 load_existing_gitmodules() {
-  local key=""
-  local sub_path=""
-  local section=""
-  local branch=""
-
-  EXISTING_SECTION_NAMES=()
-  EXISTING_BRANCHES=()
+  local record="" key="" sub_path="" section="" branch=""
+  local -A sections
+  EXISTING_SECTION_NAMES=(); EXISTING_BRANCHES=()
   [[ -f "$GITMODULES_FILE" ]] || return 0
-
-  while read -r key sub_path; do
-    [[ -n "$key" && -n "$sub_path" ]] || continue
-    section="${key#submodule.}"
-    section="${section%.path}"
-    EXISTING_SECTION_NAMES[$sub_path]="$section"
-    branch="$(git -C "$REPO_ROOT" config -f "$GITMODULES_FILE" --get "submodule.${section}.branch" 2>/dev/null || true)"
-    [[ -n "$branch" ]] && EXISTING_BRANCHES[$sub_path]="$branch"
-  done < <(git -C "$REPO_ROOT" config -f "$GITMODULES_FILE" --get-regexp '^submodule\..*\.path$' 2>/dev/null || true)
+  while IFS= read -r -d '' record; do
+    key="${record%%$'\n'*}"; sub_path="${record#*$'\n'}"
+    section="${key#submodule.}"; section="${section%.path}"
+    [[ -n "$sub_path" && -n "$section" && -z "${EXISTING_SECTION_NAMES[$sub_path]:-}" && -z "${sections[$section]:-}" ]] || { error_echo '子模块 section 或 path 为空或重复。'; return 1; }
+    EXISTING_SECTION_NAMES[$sub_path]="$section"; sections[$section]="$sub_path"
+    branch="$(git config --file "$GITMODULES_FILE" --get "submodule.${section}.branch" 2>/dev/null || true)"
+    [[ -z "$branch" ]] || EXISTING_BRANCHES[$sub_path]="$branch"
+  done < <(git config --null --file "$GITMODULES_FILE" --get-regexp '^submodule\..*\.path$' 2>/dev/null || true)
 }
 # 扫描工程根目录第一层真实存在的子 Git 目录。
 discover_current_subgit_dirs() {
@@ -192,116 +194,89 @@ discover_current_subgit_dirs() {
     return 1
   fi
 }
-# 按 Jobs 目录命名推导缺失的 GitHub origin URL。
-infer_origin_url_for_subgit() {
-  local sub_path="$1"
-  local sub_dir="${REPO_ROOT}/${sub_path}"
-  local base_name=""
-  local repo_name=""
-
-  base_name="$(basename "$sub_path")"
-  if [[ "$base_name" == *.py ]]; then
-    repo_name="${base_name%.py}"
-    if [[ -d "${sub_dir}/${repo_name}" ]]; then
-      print -r -- "git@github.com:JobsKits/${repo_name}.git"
-      return 0
-    fi
+# 解析可证明仓库层级的托管地址；本地路径、未知协议和歧义路径不参与相对化。
+hosted_url_parts() {
+  local value="$1" rest="" authority="" repository_path="" namespace="" repository=""
+  [[ -n "$value" && "$value" != *$'\n'* && "$value" != *$'\r'* && "$value" != *$'\t'* && "$value" != *\?* && "$value" != *\#* && "$value" != *\\* ]] || return 1
+  case "$value" in
+    http://*|https://*|ssh://*)
+      rest="${value#*://}"
+      [[ "$rest" == */* ]] || return 1
+      authority="${rest%%/*}"; repository_path="${rest#*/}"
+      if [[ "$value" == ssh://* ]]; then
+        [[ "${authority%%@*}" != *:* || "$authority" != *@* ]] || return 1
+      else
+        [[ "$authority" != *@* ]] || return 1
+      fi
+      authority="${authority##*@}"
+      ;;
+    *://*) return 1 ;;
+    *:*)
+      authority="${value%%:*}"; repository_path="${value#*:}"
+      [[ "$authority" != */* && "$authority" != -* && "$repository_path" != /* ]] || return 1
+      authority="${authority##*@}"
+      ;;
+    *) return 1 ;;
+  esac
+  [[ -n "$authority" && "$authority" != *[[:space:]@/]* && "$repository_path" == */* && "$repository_path" != /* && "$repository_path" != */ && "$repository_path" != *//* ]] || return 1
+  [[ "/$repository_path/" != */../* && "/$repository_path/" != */./* && "$repository_path" != '~'* ]] || return 1
+  namespace="${repository_path%/*}"; repository="${repository_path##*/}"; repository="${repository%.git}"
+  [[ -n "$repository" && "$repository" != . && "$repository" != .. && "$repository" != -* ]] || return 1
+  if [[ "$authority" == *:* ]]; then
+    authority="${value%%://*}://${authority}"
   fi
-
-  return 1
+  print -rl -- "${(L)authority}" "$namespace" "$repository"
 }
-# 判断当前 URL 是否来自目录名兜底推导。
-is_inferred_origin_url() {
-  local sub_path="$1"
-  local current_url="$2"
-  local sub_dir="${REPO_ROOT}/${sub_path}"
-  local section="${EXISTING_SECTION_NAMES[$sub_path]:-}"
-  local direct_url=""
-  local existing_url=""
-  local inferred_url=""
-
-  direct_url="$(git -C "$sub_dir" config --get remote.origin.url 2>/dev/null || true)"
-  [[ -n "$direct_url" ]] && return 1
-
-  if [[ -n "$section" ]]; then
-    existing_url="$(git -C "$REPO_ROOT" config -f "$GITMODULES_FILE" --get "submodule.${section}.url" 2>/dev/null || true)"
-    [[ -n "$existing_url" ]] && return 1
-  fi
-
-  inferred_url="$(infer_origin_url_for_subgit "$sub_path" || true)"
-  [[ -n "$inferred_url" && "$current_url" == "$inferred_url" ]]
+# 只有父子所有已配置托管线路逐一同站同命名空间、子仓名称一致时生成共享相对 URL。
+relative_submodule_url() {
+  local parent_repo="$1" child_repo="$2" selected_url="$3" record="" remote_url="" endpoint="" repository="" key="" repo=""
+  local -a parts
+  local -A parent_endpoints child_endpoints
+  hosted_url_parts "$selected_url" >/dev/null || return 1
+  for repo in "$parent_repo" "$child_repo"; do
+    while IFS= read -r -d '' record; do
+      remote_url="${record#*$'\n'}"
+      parts=("${(@f)$(hosted_url_parts "$remote_url")}")
+      (( ${#parts} == 3 )) || return 1
+      endpoint="${parts[1]}/${parts[2]}"
+      if [[ "$repo" == "$parent_repo" ]]; then
+        parent_endpoints[$endpoint]=1
+      else
+        [[ -z "$repository" || "$repository" == "${parts[3]}" ]] || return 1
+        repository="${parts[3]}"
+        child_endpoints[$endpoint]=1
+      fi
+    done < <(git -C "$repo" config --local --null --get-regexp '^remote\..*\.url$' 2>/dev/null || true)
+  done
+  (( ${#parent_endpoints} && ${#parent_endpoints} == ${#child_endpoints} )) || return 1
+  for key in "${(@k)parent_endpoints}"; do
+    [[ -n "${child_endpoints[$key]:-}" ]] || return 1
+  done
+  [[ -n "$repository" ]] || return 1
+  print -r -- "../${repository}.git"
 }
-# 读取子 Git 当前可用的 origin URL，必要时回退到旧 .gitmodules。
+# 优先保留已有 URL；新增登记只读取真实 origin，不根据目录名猜测远端。
 read_origin_url_for_subgit() {
-  local sub_path="$1"
-  local sub_dir="${REPO_ROOT}/${sub_path}"
-  local section="${EXISTING_SECTION_NAMES[$sub_path]:-}"
-  local url=""
-
-  url="$(git -C "$sub_dir" config --get remote.origin.url 2>/dev/null || true)"
-  if [[ -n "$url" ]]; then
-    print -r -- "$url"
-    return 0
-  fi
-
+  local sub_path="$1" section="${EXISTING_SECTION_NAMES[$1]:-}" url=""
   if [[ -n "$section" ]]; then
-    url="$(git -C "$REPO_ROOT" config -f "$GITMODULES_FILE" --get "submodule.${section}.url" 2>/dev/null || true)"
-    if [[ -n "$url" ]]; then
-      print -r -- "$url"
-      return 0
-    fi
+    url="$(git config --file "$GITMODULES_FILE" --get "submodule.${section}.url" 2>/dev/null || true)"
   fi
-
-  url="$(infer_origin_url_for_subgit "$sub_path" || true)"
-  if [[ -n "$url" ]]; then
-    print -r -- "$url"
-    return 0
-  fi
-
-  return 1
+  [[ -n "$url" ]] || url="$(git -C "$REPO_ROOT/$sub_path" remote get-url origin 2>/dev/null || true)"
+  [[ -n "$url" && "$url" != -* && "$url" != *$'\n'* && "$url" != *$'\r'* && "$url" != *$'\t'* ]] || return 1
+  print -r -- "$url"
 }
-# 读取子 Git 分支名，detached HEAD 时尽量使用远端 main 或已有配置。
+# 新 section 只记录实际检出的本地分支；游离 HEAD 保持缺省，不猜 main。
 read_branch_for_subgit() {
-  local sub_path="$1"
-  local sub_dir="${REPO_ROOT}/${sub_path}"
-  local branch=""
-  local origin_head=""
-
-  branch="$(git -C "$sub_dir" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
-  if [[ -n "$branch" ]]; then
-    print -r -- "$branch"
-    return 0
-  fi
-
-  branch="${EXISTING_BRANCHES[$sub_path]:-}"
-  if [[ -n "$branch" ]]; then
-    print -r -- "$branch"
-    return 0
-  fi
-
-  origin_head="$(git -C "$sub_dir" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
-  origin_head="${origin_head#origin/}"
-  if [[ -n "$origin_head" && "$origin_head" != "refs/remotes/origin/HEAD" ]]; then
-    print -r -- "$origin_head"
-    return 0
-  fi
-
-  if git -C "$sub_dir" show-ref --verify --quiet refs/remotes/origin/main 2>/dev/null; then
-    print -r -- "main"
-    return 0
-  fi
-
-  print -r -- "main"
+  git -C "$REPO_ROOT/$1" symbolic-ref --quiet --short HEAD 2>/dev/null || true
 }
 # 收集可写入 .gitmodules 的子 Git 元数据，缺少 URL 的目录只提示并跳过。
 collect_submodule_metadata() {
   local sub_path=""
   local url=""
-  local branch=""
+  local branch="" section="" stored_url="" relative_url=""
 
   WRITABLE_SUBGIT_DIRS=()
   SKIPPED_SUBGIT_DIRS=()
-  INFERRED_SUBGIT_DIRS=()
   SUBMODULE_URLS=()
   SUBMODULE_BRANCHES=()
   for sub_path in "${CURRENT_SUBGIT_DIRS[@]}"; do
@@ -311,13 +286,21 @@ collect_submodule_metadata() {
       continue
     fi
 
-    branch="$(read_branch_for_subgit "$sub_path")"
+    section="${EXISTING_SECTION_NAMES[$sub_path]:-}"
+    stored_url=""
+    [[ -z "$section" ]] || stored_url="$(git config --file "$GITMODULES_FILE" --get "submodule.${section}.url" 2>/dev/null || true)"
+    if [[ -z "$stored_url" ]]; then
+      if relative_url="$(relative_submodule_url "$REPO_ROOT" "$REPO_ROOT/$sub_path" "$url")"; then
+        url="$relative_url"
+      else
+        warn_echo "${sub_path}：远端映射无法统一验证，保留明确原地址。"
+      fi
+    fi
+    branch="${EXISTING_BRANCHES[$sub_path]:-}"
+    [[ -n "$section" ]] || branch="$(read_branch_for_subgit "$sub_path")"
     SUBMODULE_URLS[$sub_path]="$url"
     SUBMODULE_BRANCHES[$sub_path]="$branch"
     WRITABLE_SUBGIT_DIRS+=("$sub_path")
-    if is_inferred_origin_url "$sub_path" "$url"; then
-      INFERRED_SUBGIT_DIRS+=("$sub_path")
-    fi
   done
 
   if [[ ${#WRITABLE_SUBGIT_DIRS[@]} -eq 0 ]]; then
@@ -366,37 +349,26 @@ print_scan_report() {
     echo ""
   fi
 
-  if [[ ${#INFERRED_SUBGIT_DIRS[@]} -gt 0 ]]; then
-    warn_echo "以下子 Git 的 origin 无法直接读取，已按目录名兜底推导 URL："
-    for sub_path in "${INFERRED_SUBGIT_DIRS[@]}"; do
-      warn_echo "${sub_path} -> ${SUBMODULE_URLS[$sub_path]}"
-    done
-    echo ""
-  fi
-
   if [[ ${#STALE_GITMODULE_PATHS[@]} -gt 0 ]]; then
-    warn_echo "以下旧 .gitmodules path 已不在磁盘真实子 Git 中，本次会移除："
+    warn_echo "以下 .gitmodules path 暂缺工作目录，保留原有登记："
     for sub_path in "${STALE_GITMODULE_PATHS[@]}"; do
       warn_echo "$sub_path"
     done
     echo ""
   fi
 }
-# 按收集到的真实子 Git 元数据生成新的 .gitmodules 内容。
+# 从原配置增量补齐，避免抹掉相对 URL、缺失目录、分支与扩展字段。
 build_gitmodules_file() {
-  local target_file="$1"
-  local sub_path=""
-  local section=""
-
-  : > "$target_file"
+  local target_file="$1" sub_path="" section="" existing_url=""
+  if [[ -f "$GITMODULES_FILE" ]]; then cp -p "$GITMODULES_FILE" "$target_file"; else : > "$target_file"; fi
   for sub_path in "${WRITABLE_SUBGIT_DIRS[@]}"; do
     section="${EXISTING_SECTION_NAMES[$sub_path]:-$sub_path}"
-    {
-      printf '[submodule "%s"]\n' "$section"
-      printf '\tpath = %s\n' "$sub_path"
-      printf '\turl = %s\n' "${SUBMODULE_URLS[$sub_path]}"
-      printf '\tbranch = %s\n' "${SUBMODULE_BRANCHES[$sub_path]}"
-    } >> "$target_file"
+    if [[ -z "${EXISTING_SECTION_NAMES[$sub_path]:-}" ]]; then
+      git config --file "$target_file" "submodule.${section}.path" "$sub_path"
+      [[ -z "${SUBMODULE_BRANCHES[$sub_path]}" ]] || git config --file "$target_file" "submodule.${section}.branch" "${SUBMODULE_BRANCHES[$sub_path]}"
+    fi
+    existing_url="$(git config --file "$target_file" --get "submodule.${section}.url" 2>/dev/null || true)"
+    [[ -n "$existing_url" ]] || git config --file "$target_file" "submodule.${section}.url" "${SUBMODULE_URLS[$sub_path]}"
   done
 }
 # 打印本次计划写入的 .gitmodules diff。
@@ -420,8 +392,11 @@ write_gitmodules_file() {
     return 0
   fi
 
+  local current_checksum=absent
+  [[ ! -f "$GITMODULES_FILE" ]] || current_checksum="$(cksum < "$GITMODULES_FILE")"
+  [[ "$current_checksum" == "$GITMODULES_CHECKSUM" ]] || { error_echo '.gitmodules 在预览后变化，请重新运行。'; return 1; }
   cp "$planned_file" "$GITMODULES_FILE"
-  success_echo ".gitmodules 已按当前真实子 Git 目录刷新。"
+  success_echo '.gitmodules 已增量补齐，原有登记和字段保留。'
 }
 # 打印刷新后的 Git 状态和 .gitmodules 差异。
 print_final_report() {
@@ -454,8 +429,13 @@ run_business() {
     return 0
   fi
 
+  if [[ "$DRY_RUN" == 1 ]]; then
+    warn_echo 'DRY_RUN=1，只预览，不写入 .gitmodules。'
+    rm -f "$planned_file"
+    return 0
+  fi
   echo ""
-  if ! ask_enter_to_run "确认用上述内容更新 .gitmodules 吗？"; then
+  if ! ask_enter_to_run "确认按上述增量计划更新 .gitmodules 吗？"; then
     warn_echo "用户选择跳过 .gitmodules 更新。"
     rm -f "$planned_file"
     return 0
@@ -477,8 +457,8 @@ main() {
   load_existing_gitmodules # 读取旧配置，用于保留已有 section 名和分支配置。
   discover_current_subgit_dirs # 扫描根目录第一层真实存在的子 Git 目录。
   collect_submodule_metadata # 收集每个可写入子 Git 的 URL 和分支。
-  collect_stale_gitmodules_paths # 识别旧配置中已经失效的 path。
-  run_business # 展示计划变更，并在二次确认后刷新 .gitmodules。
+  collect_stale_gitmodules_paths # 识别暂缺目录并保留旧登记。
+  run_business # 展示增量计划，确认后仅补齐缺失字段。
 }
 
 main "$@"
