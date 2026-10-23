@@ -128,4 +128,19 @@
 * 补齐 `.gitmodules` 和缺失的子模块指针，初始化本地登记，将元数据归集到父仓。
 * 核验父子关系和子仓提交号；仅暂存必要关联，不联网拉取、不提交、不推送。
 
+## 三、<span id="iphone-duo">iPhone Duo 与动态窗口适配</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+
+四个项目按 [**Apple 动态窗口适配步骤**](https://developer.apple.com/iphone-duo/prepare/)检查当前容器尺寸、运行中重新布局、逐边安全区、场景窗口和图片显示密度。使用 [**Xcode**](https://developer.apple.com/xcode) 27.1 / iOS 27.1 SDK 或更新版本构建；各项目原有最低系统版本继续保留。
+
+| 项目 | 适配落点 | 本轮验证 | 详细说明 |
+| --- | --- | --- | --- |
+| OC | 根列表与欢迎页随窗口重排；自绘 TabBar 逐边安全区与子页面额外 inset；本地图片渲染接收调用方 trait | 定向源码复核，Iconfont / 新增系统 DSL 语法检查通过；其余检查受既有头文件 / 模块依赖阻断，未完成整包构建 | [OC README](./JobsBaseConfig@JobsOCBaseConfigDemo/README.md) |
+| Swift | 登录表单、朋友圈高度缓存、发布网格、抽屉及自绘栏按所属视图更新；密度变化刷新图像 | 59 份 Swift 语法检查、局部类型检查及 1,536 组表单几何边界通过；部分类型检查使用依赖签名替身，未完成整包构建 | [Swift README](./JobsBaseConfig@JobsSwiftBaseConfigDemo/README.md) |
+| SwiftUI | 使用系统场景与导航容器；浮钮遵循当前安全区；动画 / 分页在矮窗口可滚动，Popover 宽度可收缩 | Debug / Release 源码类型检查及临时副本 Debug 整包构建通过；Duo 模拟器数据迁移失败，姿态交互待验 | [SwiftUI README](./JobsBaseConfig@JobsSwiftUIBaseConfigDemo/README.md#iphone-duo) |
+| Flutter | 三种 Runner 动态布局及逐边 SafeArea；保留框架 metrics 回调；轮播、弹层、WebView 读取局部空间 | 11 项布局测试与定向 Dart 分析通过；未完成本轮 iOS 整包与 Duo 姿态验收 | [Flutter README](./JobsBaseConfig@JobsFlutterBaseConfigDemo/README.md) |
+
+Swift 宿主的内嵌 `my_flutter` 表单同样按逐边安全区滚动，输入和请求状态保持，见其 [README](./JobsBaseConfig@JobsSwiftBaseConfigDemo/my_flutter/README.md)。
+
+验证记录与未处理边界以各子仓 README 为准。第三方、供应商、生成源码和他人署名文件保持原样；无调用方上下文的历史全局尺寸 / 渲染入口仍有兼容边界，不能据此宣称全仓已消除屏幕假设。折痕保留区、自定义铰链交互、相机双屏、App Store 截图与上架不属于基础动态布局的验收结果。
+
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>
