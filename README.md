@@ -134,12 +134,14 @@
 
 | 项目 | 适配落点 | 本轮验证 | 详细说明 |
 | --- | --- | --- | --- |
-| OC | 根列表与欢迎页随窗口重排；自绘 TabBar 逐边安全区与子页面额外 inset；本地图片渲染接收调用方 trait | 定向源码复核，Iconfont / 新增系统 DSL 语法检查通过；其余检查受既有头文件 / 模块依赖阻断，未完成整包构建 | [OC README](./JobsBaseConfig@JobsOCBaseConfigDemo/README.md) |
-| Swift | 登录表单、朋友圈高度缓存、发布网格、抽屉及自绘栏按所属视图更新；密度变化刷新图像 | 59 份 Swift 语法检查、局部类型检查及 1,536 组表单几何边界通过；部分类型检查使用依赖签名替身，未完成整包构建 | [Swift README](./JobsBaseConfig@JobsSwiftBaseConfigDemo/README.md) |
-| SwiftUI | 使用系统场景与导航容器；浮钮遵循当前安全区；动画 / 分页在矮窗口可滚动，Popover 宽度可收缩 | Debug / Release 源码类型检查及临时副本 Debug 整包构建通过；Duo 模拟器数据迁移失败，姿态交互待验 | [SwiftUI README](./JobsBaseConfig@JobsSwiftUIBaseConfigDemo/README.md#iphone-duo) |
-| Flutter | 三种 Runner 动态布局及逐边 SafeArea；保留框架 metrics 回调；轮播、弹层、WebView 读取局部空间 | 11 项布局测试与定向 Dart 分析通过；未完成本轮 iOS 整包与 Duo 姿态验收 | [Flutter README](./JobsBaseConfig@JobsFlutterBaseConfigDemo/README.md) |
+| OC | 根列表与欢迎页随窗口重排；自绘 TabBar 逐边安全区与子页面额外 inset；本地图片渲染接收调用方 trait | `9b4d5156` 的 [完整构建工作流](https://github.com/JobsKits/JobsOCBaseConfigDemo/actions/runs/40054135112)成功：iOS 27.1 Simulator 完整主 App 构建、打包上传及下载 App 摘要、身份与 SDK 核验通过 | [OC README](./JobsBaseConfig@JobsOCBaseConfigDemo/README.md) |
+| Swift | 登录表单、朋友圈高度缓存、发布网格、抽屉及自绘栏按所属视图更新；密度变化刷新图像 | `80e7ec2f` 的 [完整工作流](https://github.com/JobsKits/JobsSwiftBaseConfigDemo/actions/runs/40049391857)成功：64 个自建 Pod、主 App / 测试包构建与 27 项 hosted 回归通过，0 失败；下载 App 摘要、身份及 SDK 27.1 核验通过 | [Swift README](./JobsBaseConfig@JobsSwiftBaseConfigDemo/README.md) |
+| SwiftUI | 使用系统场景与导航容器；浮钮遵循当前安全区；动画 / 分页在矮窗口可滚动，Popover 宽度可收缩 | `17c8bba` 的 [完整工作流](https://github.com/JobsKits/JobsSwiftUIBaseConfigDemo/actions/runs/40050717252)成功：iOS 27.1 SDK，Debug / Release 完整 App 构建、上传及下载 App 摘要、身份与 SDK 核验通过 | [SwiftUI README](./JobsBaseConfig@JobsSwiftUIBaseConfigDemo/README.md#iphone-duo) |
+| Flutter | 三种 Runner 动态布局及逐边 SafeArea；保留框架 metrics 回调；轮播、弹层、WebView 读取局部空间 | `76f0614` 的 [完整工作流](https://github.com/JobsKits/JobsFlutterBaseConfigDemo/actions/runs/40049224954)成功：明确范围的分析、21 项回归、iOS 27.1 Simulator 完整构建与下载 App 核验通过 | [Flutter README](./JobsBaseConfig@JobsFlutterBaseConfigDemo/README.md) |
 
 Swift 宿主的内嵌 `my_flutter` 表单同样按逐边安全区滚动，输入和请求状态保持，见其 [README](./JobsBaseConfig@JobsSwiftBaseConfigDemo/my_flutter/README.md)。
+
+GitHub 验收记录更新于 2026-10-24；只对表中精确提交与运行负责，不把工作区中其他任务的未提交改动算作已经通过。OC 的 [协议图工作流](https://github.com/JobsKits/JobsOCBaseConfigDemo/actions/runs/40049466303)也已成功。Duo 完整姿态交互仍待可用环境验收：前轮模拟器启动报 `Data Migration Failed`，构建和自动回归不能替代闭合、半折、展开及左右分屏的实际操作。
 
 验证记录与未处理边界以各子仓 README 为准。第三方、供应商、生成源码和他人署名文件保持原样；无调用方上下文的历史全局尺寸 / 渲染入口仍有兼容边界，不能据此宣称全仓已消除屏幕假设。折痕保留区、自定义铰链交互、相机双屏、App Store 截图与上架不属于基础动态布局的验收结果。
 
