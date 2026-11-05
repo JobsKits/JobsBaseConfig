@@ -4,6 +4,8 @@
 
 子仓下载、关联修复与清单补缺见[Git 子模块脚本](#submodule-scripts)。
 
+iPhone 真机与 iOS 模拟器自动巡检工具分别放在各工程自己的 `ScriptsByDevTools`，每包独立操作本工程 App 并保存步骤、截图和结果：[OC 新工程](../JobsOCBaseConfigDemo@ByPods/ScriptsByDevTools/【MacOS】🧪iOS自动巡检.command/README.md)、[OC 老工程](./JobsBaseConfig@JobsOCBaseConfigDemo/ScriptsByDevTools/【MacOS】🧪iOS自动巡检.command/README.md)、[Swift UIKit](./JobsBaseConfig@JobsSwiftBaseConfigDemo/ScriptsByDevTools/【MacOS】🧪iOS自动巡检.command/README.md)、[SwiftUI](./JobsBaseConfig@JobsSwiftUIBaseConfigDemo/ScriptsByDevTools/【MacOS】🧪iOS自动巡检.command/README.md)。每包均附零基础教程，Flutter 不在覆盖范围内。
+
 <strong id="markdown-toc-sync">同步后文档目录：本地 `[toc]`，提交后发布折叠目录</strong>
 
 本地编辑保留独占行 `[toc]`；整文件暂存时由 [**Git**](https://git-scm.com/) 过滤器生成按标题层级缩进、默认收起的可折叠目录，正常提交推送后供远端展示。下载入口逐仓检查已生效的 `filter.jobs-markdown-toc` 配置，再决定是否恢复当前工作区；父仓配置不能代替子仓配置。
